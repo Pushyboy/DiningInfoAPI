@@ -51,7 +51,10 @@ POST /api/v1/message
 ```
 
 ## TODO
-* **Scraping**: Port over code for scraping from old project
-* **Refactoring**: Organization is a bit messy right now
-* **Tests**: Improve code quality and maintainability by adding comprehensive unit test
+* **Scraping**: Move over code for scraping from old project
 * **Auth**: Add refresh token functionality instead of just constantly refreshing access token
+* **DB**: Implement the rest of the db functions to simplify endpoint code
+* **Documentation**: Add API documentation
+* **Refactoring**: Make code more organized
+* **.env**: Create example .env file
+* **Tests**: Improve code quality and maintainability by adding comprehensive unit tests
