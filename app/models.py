@@ -34,9 +34,7 @@ class Message(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id"))
-    sender_id = Column(Integer, ForeignKey("users.id"))  # Who sent the message
     message_text = Column(String)
-    response_text = Column(String)  # llm response
     sent_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="messages")

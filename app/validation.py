@@ -7,6 +7,9 @@ class UserCreate(BaseModel):
     username: str
     password: str
 
+class ConversationCreate(BaseModel):
+    title: str
+
 
 # Tokens
 

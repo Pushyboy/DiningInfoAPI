@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from models import Base, User
+from models import Base, Conversation, User
 from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.exc import IntegrityError
@@ -35,12 +35,12 @@ def is_user(username: str, db: Session):
     return get_user(username, db) is not None
 
 
-def create_user(user: User, db: Session):
+def create_record(record, db: Session):
     try:
-        db.add(user)
+        db.add(record)
         db.commit()
-        db.refresh(user)
-        return user
+        db.refresh(record)
+        return record
     except IntegrityError as e:
         db.rollback()
         raise

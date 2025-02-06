@@ -1,13 +1,16 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from auth import authenticate_user, create_access_token, get_password_hash, UserDependency
-from database import create_user, get_session, SessionDependency, is_user
-from validation import Token, UserCreate
-from models import User, Conversation
+from database import create_record, get_session, SessionDependency, is_user
+from validation import ConversationCreate, Token, UserCreate
+from models import Message, User, Conversation
 from config import config
 from fastapi.middleware.cors import CORSMiddleware
+
+from llm.model import Model
+from llm.chroma import ChromaDBManager
 
 app = FastAPI()
 
@@ -24,6 +27,11 @@ app.add_middleware(
 )
 
 
+# Initialize Model
+chroma_db = ChromaDBManager(db_path=config.CHROMA_DB_PATH)
+model = Model(chroma=chroma_db)
+
+
 @app.post("/create-user", status_code=status.HTTP_201_CREATED)
 async def user(user: UserCreate, db: SessionDependency):
     hashed_password = get_password_hash(user.password)
@@ -33,7 +41,7 @@ async def user(user: UserCreate, db: SessionDependency):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="User already exists")
 
-    create_user(db_user, db)
+    create_record(db_user, db)
 
     # Create access token
     access_token_expires = timedelta(
@@ -63,22 +71,76 @@ async def refresh_access_token(
     )
     return Token(access_token=access_token, token_type="bearer")
 
+
 @app.post("/create-conversation", status_code=status.HTTP_201_CREATED)
-async def create_conversation(user: UserDependency, db: SessionDependency):
-    conversation = Conversation(title = "")
+async def create_conversation(conversation: ConversationCreate, user: UserDependency, db: SessionDependency):
+    db_conversation = Conversation(
+        title=conversation.title,
+        user_id=user.id
+    )
+    create_record(db_conversation, db)
+    return {"title": "conversation.title"}
 
 
 @app.get("/conversations")
-async def fetch_conversation(user: UserDependency, db: SessionDependency):
+async def fetch_conversations(user: UserDependency, db: SessionDependency):
     result = db.query(Conversation.name).filter(
         Conversation.user_id == user.id).all()
-    return [res.name for res in result]
+    return [{"title": res.title} for res in result]
 
 
-# @app.post("/conversations/", status_code=status.HTTP_201_CREATED)
-# def create_conversation(conversation: ConversationCreate, user: UserDependency):
-#     db_conversation = Conversation(**conversation.dict())
-#     db.add(db_conversation)
-#     db.commit()
-#     db.refresh(db_conversation)
-#     return db_conversation
+async def get_messages(title: str, user_id, db: SessionDependency):
+    conversation = db.query(Conversation).filter(
+        (Conversation.user_id == user_id) &
+        (Conversation.title == title)
+    ).first()
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation does not exist")
+
+    messages = db.query(Message)
+
+
+@app.post("/message", status_code=status.HTTP_201_CREATED)
+async def message(title: str, message_text: str, user: UserDependency, db: SessionDependency):
+    # Retrieve Conversation to get Conversation_id
+    conversation = db.query(Conversation).filter(
+        (Conversation.user_id == user.id) &
+        (Conversation.title == title)
+    ).first()
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation does not exist")
+
+    # Fetch conversation history
+    messages = db.query(Message).filter(
+        Message.conversation_id == conversation.id
+    ).all()
+
+    history = history = "\n".join(
+        f"{'User' if i % 2 == 0 else 'LLM'}: {message.message_text}"
+        for i, message in enumerate(messages)
+    )
+
+    # Get LLM response
+    llm_response = model.query(query=message_text, history=history)
+
+    # Save user's message
+    user_message = Message(
+        conversation_id=conversation.id,
+        message_text=message_text,
+        sent_at=datetime.utcnow()  # Add timestamp for user's message
+    )
+    create_record(user_message, db)
+
+    # Save LLM's response
+    llm_message = Message(
+        conversation_id=conversation.id,
+        message_text=llm_response,
+        sent_at=datetime.utcnow()  # Add timestamp for LLM's response
+    )
+    create_record(llm_message, db)
+
+    return {"response": llm_response}

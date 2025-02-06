@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+SQLAlchemy
+passlib
+python-jose
+PyJWT
+requests
+pydantic
+langchain
+langchain-community
+langchain-openai
+langchain-chroma
+sentence-transformers
+openai

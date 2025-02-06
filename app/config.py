@@ -22,6 +22,9 @@ class Config:
     DEBUG_MODE = os.getenv('DEBUG_MODE', 'False').lower() == 'true'
     ALLOWED_ORIGINS = ['http://localhost:4200']
 
+    # Chroma Settings
+    CHROMA_DB_PATH = os.getenv('CHROMA_DB_PATH', 'chroma_db')
+
     if DEBUG_MODE:
         DATABASE_URL = "sqlite:///:memory:"  # In-memory SQLite for debug
     else:
